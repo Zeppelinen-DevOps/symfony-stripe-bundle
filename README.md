@@ -4,7 +4,11 @@
 To install this bundle, run the command below and you will get the latest version from [Packagist][3].
 
 ``` bash
-composer require uc/payment-bundle dev
+composer require stripe/stripe-php ~3.23
+```
+
+``` bash
+composer require uc/payment-bundle dev-master
 ```
 
 Load required bundles in AppKernel.php:
