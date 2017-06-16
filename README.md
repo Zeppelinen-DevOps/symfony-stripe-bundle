@@ -4,7 +4,7 @@
 To install this bundle, run the command below and you will get the latest version from [Packagist][3].
 
 ``` bash
-composer require uc/payment-bundle
+composer require uc/payment-bundle dev
 ```
 
 Load required bundles in AppKernel.php:
