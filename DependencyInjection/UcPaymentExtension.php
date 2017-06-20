@@ -31,6 +31,6 @@ class UcPaymentExtension extends Extension
 
         $paypal = isset($config['paypal']) ? $config['paypal'] : array();
 
-        $container->setParameter('uc_payment.paypal', $stripe);
+        $container->setParameter('uc_payment.paypal', $paypal);
     }
 }
