@@ -19,10 +19,15 @@
 
 namespace Uc\PaymentBundle\Model;
 
+use Exception;
 use HttpException;
 use Stripe\Charge;
+use Stripe\Customer;
+use Stripe\Plan;
 use Stripe\Refund;
 use Stripe\Stripe;
+use Stripe\StripeObject;
+use Stripe\Subscription;
 use Symfony\Component\HttpKernel\Kernel;
 
 
@@ -111,6 +116,189 @@ class StripeManager extends Stripe
         }
 
         return Charge::create($chargeOptions);
+    }
+
+
+    /**
+     * @param $email
+     * @return null
+     */
+    public function getCustomerByEmail($email)
+    {
+        $lastCustomer = null;
+        $customer = null;
+        while (true) {
+            $customers = Customer::all([
+                'limit' => 100,
+                'starting_after' => $lastCustomer
+            ]);
+
+            foreach ($customers->autoPagingIterator() as $stripeCustomer) {
+                if ($stripeCustomer->email === $email) {
+                    $customer = $stripeCustomer;
+                    break 2;
+                }
+            }
+
+            if (!$customers->has_more) {
+                break;
+            }
+
+            $lastCustomer = end($customers->data);
+        }
+
+        return $customer;
+    }
+
+    /**
+     * @param $email
+     * @return null|Customer
+     */
+    public function getCustomerByEmailOrNew($email)
+    {
+        $customer = $this->getCustomerByEmail($email);
+
+        if (!$customer) {
+            $customer = Customer::create([
+                'email' => $email
+            ]);
+        }
+
+        return $customer;
+    }
+
+
+    /**
+     * @param string $stripeSubscriptionId
+     * @param null|string $source
+     * @return Exception|Subscription
+     */
+    public function chargeSubscription($stripeSubscriptionId, $source = null)
+    {
+        try {
+            $subscription = Subscription::retrieve($stripeSubscriptionId);
+
+            if ($subscription->status === 'trialing') {
+                $subscription->trial_end = 'now';
+            }
+
+            if ($source) {
+                $subscription->source = $source;
+            }
+
+            return $subscription->save();
+
+        } catch (Exception $exception) {
+            return $exception;
+        }
+    }
+
+
+    /**
+     * @param $stripeCustomerId
+     * @param $email
+     * @return Exception|null|Customer
+     */
+    public function getCustomerOrNew($stripeCustomerId, $email)
+    {
+        try {
+            $customer = null;
+            if ($stripeCustomerId) {
+                $customer = Customer::retrieve($stripeCustomerId);
+            }
+
+            if (!$customer) {
+                $customer = Customer::create([
+                    'email' => $email
+                ]);
+            }
+
+            return $customer;
+        } catch (Exception $exception) {
+            return $exception;
+        }
+    }
+
+    /**
+     * @param Customer $customer
+     * @param array $params
+     * @return Exception|Customer
+     */
+    public function updateCustomer($customer, $params)
+    {
+        try {
+            foreach ($params as $field => $value) {
+                $customer->$field = $value;
+            }
+
+            $customer->save();
+
+            return $customer;
+        } catch (Exception $exception) {
+            return $exception;
+        }
+    }
+
+    /**
+     * @param $data
+     * @return StripeObject
+     */
+    public function constructSubscriptionFormArray($data): StripeObject
+    {
+        return Subscription::constructFrom($data, []);
+    }
+
+    /**
+     * @param Customer $customer
+     * @param Plan $plan
+     * @param array $params
+     * @return string|Subscription
+     */
+    public function createSubscription($customer, $plan, array $params = [])
+    {
+        $data = [
+            'customer' => $customer->id,
+            'items' => [
+                [
+                    'plan' => $plan->id
+                ]
+            ],
+        ];
+        $data = array_merge($data, $params);
+
+        /*if ($trialEndTime) {
+            $params['trial_end'] = $trialEndTime;
+        }*/
+
+        try {
+            return Subscription::create($data);
+        } catch (Exception $exception) {
+            return $exception;
+        }
+    }
+
+    public function cancelSubscription($stripeSubscriptionId)
+    {
+        try {
+            $subscription = Subscription::retrieve($stripeSubscriptionId);
+
+            return $subscription->cancel();
+        } catch (Exception $exception) {
+            return $exception;
+        }
+    }
+
+    /**
+     * @param $planId
+     * @return string|Plan
+     */
+    public function getPlanById($planId)
+    {
+        try {
+            return Plan::retrieve($planId);
+        } catch (Exception $exception) {
+            return $exception;
+        }
     }
 
     /**
