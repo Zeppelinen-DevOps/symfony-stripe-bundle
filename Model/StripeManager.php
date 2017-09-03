@@ -86,7 +86,7 @@ class StripeManager extends Stripe
      * @param int $chargeAmount : The charge amount in cents
      * @param string $chargeCurrency : The charge currency to use
      * @param string $paymentToken : The payment token returned by the payment form (Stripe.js)
-     * @param string $stripeAccountId : The connected stripe account ID
+     * @param string $accountId : The connected stripe account ID
      * @param int $applicationFee : The fee taken by the platform, in cents
      * @param string $description : An optional charge description
      * @param array $metadata : An optional array of metadatas
@@ -97,6 +97,7 @@ class StripeManager extends Stripe
         $chargeAmount, //The charge amount in cents
         $chargeCurrency, //The charge currency to use
         $paymentToken, //The payment token returned by the payment form (Stripe.js)
+        $accountId = null, //The payment token returned by the payment form (Stripe.js)
         $applicationFee = 0, //The fee taken by the platform, in cents
         $chargeDescription = '',
         $chargeMetadata = []
@@ -113,6 +114,12 @@ class StripeManager extends Stripe
         if ($applicationFee && intval($applicationFee) > 0)
         {
             $chargeOptions['application_fee'] = intval($applicationFee);
+        }
+
+        if ($accountId) {
+            $chargeOptions['destination'] = [
+                'account' => $accountId
+            ];
         }
 
         return Charge::create($chargeOptions);
@@ -277,12 +284,12 @@ class StripeManager extends Stripe
         }
     }
 
-    public function cancelSubscription($stripeSubscriptionId)
+    public function cancelSubscription($stripeSubscriptionId, array $params = [])
     {
         try {
             $subscription = Subscription::retrieve($stripeSubscriptionId);
 
-            return $subscription->cancel();
+            return $subscription->cancel($params);
         } catch (Exception $exception) {
             return $exception;
         }
