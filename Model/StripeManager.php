@@ -21,6 +21,7 @@ namespace Uc\PaymentBundle\Model;
 
 use Exception;
 use HttpException;
+use Stripe\Account;
 use Stripe\Charge;
 use Stripe\Customer;
 use Stripe\Plan;
@@ -52,15 +53,13 @@ class StripeManager extends Stripe
      * StripeManager constructor.
      * @param Kernel $kernel
      */
-    function __construct(Kernel $kernel)
+    public function __construct(Kernel $kernel)
     {
         $this->kernel = $kernel;
 
         $this->config = $kernel->getContainer()->getParameter('uc_payment.stripe');
 
         self::setApiKey($this->config['app_secret']);
-
-        return $this;
     }
 
     /**
@@ -88,21 +87,20 @@ class StripeManager extends Stripe
      * @param string $paymentToken : The payment token returned by the payment form (Stripe.js)
      * @param string $accountId : The connected stripe account ID
      * @param int $applicationFee : The fee taken by the platform, in cents
-     * @param string $description : An optional charge description
-     * @param array $metadata : An optional array of metadatas
+     * @param string $chargeDescription : An optional charge description
+     * @param array $chargeMetadata : An optional array of metadatas
      *
      * @return Charge
      */
     public function createCharge(
-        $chargeAmount, //The charge amount in cents
-        $chargeCurrency, //The charge currency to use
-        $paymentToken, //The payment token returned by the payment form (Stripe.js)
-        $accountId = null, //The payment token returned by the payment form (Stripe.js)
-        $applicationFee = 0, //The fee taken by the platform, in cents
+        $chargeAmount,
+        $chargeCurrency,
+        $paymentToken,
+        $accountId = null,
+        $applicationFee = 0,
         $chargeDescription = '',
         $chargeMetadata = []
-    )
-    {
+    ) {
         $chargeOptions = [
             'amount' => $chargeAmount,
             'currency' => $chargeCurrency,
@@ -111,9 +109,8 @@ class StripeManager extends Stripe
             'metadata' => $chargeMetadata
         ];
 
-        if ($applicationFee && intval($applicationFee) > 0)
-        {
-            $chargeOptions['application_fee'] = intval($applicationFee);
+        if ($applicationFee && (int)$applicationFee > 0) {
+            $chargeOptions['application_fee'] = (int)$applicationFee;
         }
 
         if ($accountId) {
@@ -123,6 +120,48 @@ class StripeManager extends Stripe
         }
 
         return Charge::create($chargeOptions);
+    }
+
+
+
+    /**
+     * Create a new Refund on an existing Charge (by its ID).
+     *
+     * @throws HttpException:
+     *     - If the charge id is invalid (the charge does not exists...)
+     *     - If the charge has already been refunded
+     *
+     * @see https://stripe.com/docs/connect/direct-charges#issuing-refunds
+     *
+     * @param string $chargeId : The charge ID
+     * @param int $refundAmount : The charge amount in cents
+     * @param array $metadata : optional additional informations about the refund
+     * @param string $reason : The reason of the refund, either "requested_by_customer", "duplicate" or "fraudulent"
+     * @param bool $refundApplicationFee : Wether the application_fee should be refunded aswell.
+     * @param bool $reverseTransfer : Wether the transfer should be reversed
+     * @param string $stripeAccountId : The optional connected stripe account ID on which charge has been made.
+     *
+     * @return Refund
+     */
+    public function refundCharge(
+        $chargeId,
+        $refundAmount = null,
+        $metadata = [],
+        $reason = 'requested_by_customer',
+        $reverseTransfer = false
+    ) {
+        $refundOptions = [
+            'charge' => $chargeId,
+            'metadata' => $metadata,
+            'reason' => $reason,
+            'reverse_transfer' => (bool)$reverseTransfer
+        ];
+
+        if ($refundAmount) {
+            $refundOptions['amount'] = (int)$refundAmount;
+        }
+
+        return Refund::create($refundOptions);
     }
 
 
@@ -309,43 +348,21 @@ class StripeManager extends Stripe
     }
 
     /**
-     * Create a new Refund on an existing Charge (by its ID).
-     *
-     * @throws HttpException:
-     *     - If the charge id is invalid (the charge does not exists...)
-     *     - If the charge has already been refunded
-     *
-     * @see https://stripe.com/docs/connect/direct-charges#issuing-refunds
-     *
-     * @param string $chargeId : The charge ID
-     * @param int $refundAmount : The charge amount in cents
-     * @param array $metadata : optional additional informations about the refund
-     * @param string $reason : The reason of the refund, either "requested_by_customer", "duplicate" or "fraudulent"
-     * @param bool $refundApplicationFee : Wether the application_fee should be refunded aswell.
-     * @param bool $reverseTransfer : Wether the transfer should be reversed
-     * @param string $stripeAccountId : The optional connected stripe account ID on which charge has been made.
-     *
-     * @return Refund
+     * @param string $email
+     * @param string $country
+     * @return Exception|Account
      */
-    public function refundCharge(
-        $chargeId, //The charge ID
-        $refundAmount = null, //The charge amount in cents
-        $metadata = [], //optional additional informations about the refund
-        $reason = 'requested_by_customer', //The reason of the refund, either "requested_by_customer", "duplicate" or "fraudulent"
-        $reverseTransfer = false //Wether the transfer should be reversed
-    )
+    public function createDeferredAccount($email, $country)
     {
-        $refundOptions = [
-            'charge' => $chargeId,
-            'metadata' => $metadata,
-            'reason' => $reason,
-            'reverse_transfer' => (bool)$reverseTransfer
-        ];
-        if ($refundAmount)
-        {
-            $refundOptions['amount'] = intval($refundAmount);
+        try {
+            return Account::create([
+                'country' => strtoupper($country),
+                'type' => 'standard',
+                'email' => $email,
+                'default_currency' => 'usd',
+            ]);
+        } catch (Exception $exception) {
+            return $exception;
         }
-
-        return Refund::create($refundOptions);
     }
 }
