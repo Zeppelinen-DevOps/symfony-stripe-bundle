@@ -33,6 +33,7 @@ class Configuration implements ConfigurationInterface
                     ->children()
                         ->scalarNode('client_id')->cannotBeEmpty()->isRequired()->info('Your PayPal client ID key')->end()
                         ->scalarNode('secret')->cannotBeEmpty()->isRequired()->info('Your secret PayPal API key')->end()
+                        ->scalarNode('mode')->cannotBeEmpty()->isRequired()->info('Your PayPal mode')->end()
                     ->end()
                 ->end() // stripe
             ->end();
