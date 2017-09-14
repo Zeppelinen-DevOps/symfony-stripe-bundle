@@ -88,7 +88,7 @@ class PayPalManager
      */
     public function getMode()
     {
-        return $this->config['mode'];
+        return $this->config['sandbox'] ? 'sandbox' : 'live';
     }
 
 
